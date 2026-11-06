@@ -60,6 +60,20 @@ void quantiles_sorted_view<T, C, A>::convert_to_cummulative() {
   }
 }
 
+// Compaction can drop the min and max, but the sketch stores them exactly. Add each back as an entry
+// of weight 1, taken from its neighbor, so ranks 0 and 1 return them (IncludeMinMax in Java).
+template<typename T, typename C, typename A>
+void quantiles_sorted_view<T, C, A>::include_min_max(const T& min_item, const T& max_item) {
+  const bool add_min = comparator_(min_item, deref_helper(entries_.front().first));
+  const bool add_max = comparator_(deref_helper(entries_.back().first), max_item);
+  entries_.reserve(entries_.size() + (add_min ? 1 : 0) + (add_max ? 1 : 0));
+  if (add_max) {
+    entries_.back().second = total_weight_ - 1;
+    entries_.push_back(Entry(ref_helper(max_item), total_weight_));
+  }
+  if (add_min) entries_.insert(entries_.begin(), Entry(ref_helper(min_item), 1));
+}
+
 template<typename T, typename C, typename A>
 double quantiles_sorted_view<T, C, A>::get_rank(const T& item, bool inclusive) const {
   if (entries_.empty()) throw std::runtime_error("operation is undefined for an empty sketch");

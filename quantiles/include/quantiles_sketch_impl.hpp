@@ -746,6 +746,7 @@ quantiles_sorted_view<T, C, A> quantiles_sketch<T, C, A>::get_sorted_view() cons
   }
 
   view.convert_to_cummulative();
+  if (!is_empty()) view.include_min_max(*min_item_, *max_item_);
   return view;
 }
 
