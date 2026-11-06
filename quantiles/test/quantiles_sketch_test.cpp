@@ -222,7 +222,7 @@ TEST_CASE("quantiles sketch", "[quantiles_sketch]") {
     const int n = 1000;
     int num_min_dropped = 0;
     int num_max_dropped = 0;
-    for (int t = 0; t < 100; ++t) {
+    for (int t = 0; t < 1000; ++t) {
       quantiles_float_sketch sketch(8, std::less<float>(), 0);
       // min and max go in first, so compaction often drops them
       sketch.update(0.0f);
@@ -234,6 +234,10 @@ TEST_CASE("quantiles sketch", "[quantiles_sketch]") {
         if (pair.first == 0) min_retained = true;
         if (pair.first == n - 1) max_retained = true;
       }
+      REQUIRE(sketch.get_quantile(0) == 0);
+      REQUIRE(sketch.get_quantile(0, false) == 0);
+      REQUIRE(sketch.get_quantile(1) == n - 1);
+      REQUIRE(sketch.get_quantile(1, false) == n - 1);
       if (!min_retained) {
         ++num_min_dropped;
         REQUIRE(sketch.get_rank(0.0f) == 1.0 / n);
@@ -242,13 +246,45 @@ TEST_CASE("quantiles sketch", "[quantiles_sketch]") {
         ++num_max_dropped;
         REQUIRE(sketch.get_rank(static_cast<float>(n - 1), false) == (n - 1.0) / n);
       }
+    }
+    REQUIRE(num_min_dropped > 0);
+    REQUIRE(num_max_dropped > 0);
+  }
+
+  SECTION("estimation mode, exact min and max at ranks 0 and 1 after deserialize and merge") {
+    const int n = 1000;
+    int num_dropped = 0;
+    for (int t = 0; t < 1000; ++t) {
+      quantiles_float_sketch sketch1(8, std::less<float>(), 0);
+      quantiles_float_sketch sketch2(8, std::less<float>(), 0);
+      // sketch1 gets the min first and sketch2 gets the max first, so compaction often drops them
+      sketch1.update(0.0f);
+      for (int i = 1; i < n; ++i) sketch1.update(static_cast<float>(i));
+      sketch2.update(static_cast<float>(2 * n - 1));
+      for (int i = n; i < 2 * n - 1; ++i) sketch2.update(static_cast<float>(i));
+
+      auto bytes = sketch1.serialize();
+      auto sketch = quantiles_float_sketch::deserialize(bytes.data(), bytes.size(), serde<float>(),
+          std::less<float>(), 0);
       REQUIRE(sketch.get_quantile(0) == 0);
       REQUIRE(sketch.get_quantile(0, false) == 0);
       REQUIRE(sketch.get_quantile(1) == n - 1);
       REQUIRE(sketch.get_quantile(1, false) == n - 1);
+
+      sketch.merge(sketch2);
+      bool min_retained = false;
+      bool max_retained = false;
+      for (auto pair: sketch) {
+        if (pair.first == 0) min_retained = true;
+        if (pair.first == 2 * n - 1) max_retained = true;
+      }
+      if (!min_retained || !max_retained) ++num_dropped;
+      REQUIRE(sketch.get_quantile(0) == 0);
+      REQUIRE(sketch.get_quantile(0, false) == 0);
+      REQUIRE(sketch.get_quantile(1) == 2 * n - 1);
+      REQUIRE(sketch.get_quantile(1, false) == 2 * n - 1);
     }
-    REQUIRE(num_min_dropped > 0);
-    REQUIRE(num_max_dropped > 0);
+    REQUIRE(num_dropped > 0);
   }
 
   SECTION("consistency between get_rank and get_PMF/CDF") {
