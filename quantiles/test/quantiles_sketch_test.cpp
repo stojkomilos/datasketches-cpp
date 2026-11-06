@@ -218,6 +218,39 @@ TEST_CASE("quantiles sketch", "[quantiles_sketch]") {
     REQUIRE(total_weight == sketch.get_n());
   }
 
+  SECTION("estimation mode, exact min and max at ranks 0 and 1") {
+    const int n = 1000;
+    int num_min_dropped = 0;
+    int num_max_dropped = 0;
+    for (int t = 0; t < 100; ++t) {
+      quantiles_float_sketch sketch(8, std::less<float>(), 0);
+      // min and max go in first, so compaction often drops them
+      sketch.update(0.0f);
+      sketch.update(static_cast<float>(n - 1));
+      for (int i = 1; i < n - 1; ++i) sketch.update(static_cast<float>(i));
+      bool min_retained = false;
+      bool max_retained = false;
+      for (auto pair: sketch) {
+        if (pair.first == 0) min_retained = true;
+        if (pair.first == n - 1) max_retained = true;
+      }
+      if (!min_retained) {
+        ++num_min_dropped;
+        REQUIRE(sketch.get_rank(0.0f) == 1.0 / n);
+      }
+      if (!max_retained) {
+        ++num_max_dropped;
+        REQUIRE(sketch.get_rank(static_cast<float>(n - 1), false) == (n - 1.0) / n);
+      }
+      REQUIRE(sketch.get_quantile(0) == 0);
+      REQUIRE(sketch.get_quantile(0, false) == 0);
+      REQUIRE(sketch.get_quantile(1) == n - 1);
+      REQUIRE(sketch.get_quantile(1, false) == n - 1);
+    }
+    REQUIRE(num_min_dropped > 0);
+    REQUIRE(num_max_dropped > 0);
+  }
+
   SECTION("consistency between get_rank and get_PMF/CDF") {
     quantiles_float_sketch sketch(64, std::less<float>(), 0);
     const int n = 1000;

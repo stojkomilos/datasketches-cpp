@@ -52,6 +52,9 @@ public:
   /// @private
   void convert_to_cummulative();
 
+  /// @private
+  void include_min_max(const T& min_item, const T& max_item);
+
   class const_iterator;
 
   /**
