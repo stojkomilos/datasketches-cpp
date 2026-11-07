@@ -28,7 +28,9 @@
 namespace datasketches {
 
 /**
- * Sorted view for quantiles sketches (REQ, KLL and Quantiles)
+ * Sorted view for quantiles sketches (REQ, KLL and Quantiles).
+ * For non-arithmetic types, the view refers to the items of the sketch it came from,
+ * so it must not be used after that sketch is updated, merged, assigned to, moved or destroyed.
  */
 template<
   typename T,

@@ -51,8 +51,6 @@ public:
   T* begin();
   T* end();
 
-  uint64_t compute_weight(const T& item, bool inclusive) const;
-
   template<typename FwdT>
   void append(FwdT&& item);
 

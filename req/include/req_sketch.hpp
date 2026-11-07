@@ -291,6 +291,8 @@ public:
    * Returns an approximate quantile of the given normalized rank.
    * The normalized rank must be in the range [0.0, 1.0] (both inclusive).
    * <p>If the sketch is empty this throws std::runtime_error.
+   * <p>For non-arithmetic types, the returned reference refers to an item of this sketch, so it
+   * must not be used after this sketch is updated, merged, assigned to, moved or destroyed.
    *
    * @param rank of an item in the hypothetical sorted stream.
    * @param inclusive if true, the given rank is considered inclusive (includes weight of an item)
@@ -419,7 +421,9 @@ public:
   const_iterator end() const;
 
   /**
-   * Gets the sorted view of this sketch
+   * Gets the sorted view of this sketch.
+   * For non-arithmetic types, the view refers to the items of this sketch, so it must not be used
+   * after this sketch is updated, merged, assigned to, moved or destroyed.
    * @return the sorted view of this sketch
    */
   quantiles_sorted_view<T, Comparator, Allocator> get_sorted_view() const;

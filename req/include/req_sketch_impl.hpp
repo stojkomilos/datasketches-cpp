@@ -237,11 +237,8 @@ A req_sketch<T, C, A>::get_allocator() const {
 template<typename T, typename C, typename A>
 double req_sketch<T, C, A>::get_rank(const T& item, bool inclusive) const {
   if (is_empty()) throw std::runtime_error("operation is undefined for an empty sketch");
-  uint64_t weight = 0;
-  for (const auto& compactor: compactors_) {
-    weight += compactor.compute_weight(item, inclusive);
-  }
-  return static_cast<double>(weight) / n_;
+  setup_sorted_view();
+  return sorted_view_->get_rank(item, inclusive);
 }
 
 template<typename T, typename C, typename A>
@@ -281,6 +278,7 @@ quantiles_sorted_view<T, C, A> req_sketch<T, C, A>::get_sorted_view() const {
   }
 
   view.convert_to_cummulative();
+  if (!is_empty()) view.include_min_max(*min_item_, *max_item_);
   return view;
 }
 

@@ -213,6 +213,100 @@ TEST_CASE("req sketch: estimation mode", "[req_sketch]") {
   REQUIRE(count == sketch.get_num_retained());
 }
 
+TEST_CASE("req sketch: estimation mode, exact min and max at ranks 0 and 1", "[req_sketch]") {
+  const int n = 1000;
+  for (const bool hra: {true, false}) {
+    int num_dropped = 0;
+    for (int t = 0; t < 1000; ++t) {
+      req_sketch<float> sketch(4, hra);
+      // min and max go in first, so compaction often drops one of them
+      sketch.update(0.0f);
+      sketch.update(static_cast<float>(n - 1));
+      for (int i = 1; i < n - 1; ++i) sketch.update(static_cast<float>(i));
+      bool min_retained = false;
+      bool max_retained = false;
+      for (auto pair: sketch) {
+        if (pair.first == 0) min_retained = true;
+        if (pair.first == n - 1) max_retained = true;
+      }
+      REQUIRE(sketch.get_quantile(0) == 0);
+      REQUIRE(sketch.get_quantile(0, false) == 0);
+      REQUIRE(sketch.get_quantile(1) == n - 1);
+      REQUIRE(sketch.get_quantile(1, false) == n - 1);
+      if (!min_retained) {
+        ++num_dropped;
+        REQUIRE(sketch.get_rank(0.0f) == 1.0 / n);
+      }
+      if (!max_retained) {
+        ++num_dropped;
+        REQUIRE(sketch.get_rank(static_cast<float>(n - 1), false) == (n - 1.0) / n);
+      }
+    }
+    REQUIRE(num_dropped > 0);
+  }
+}
+
+TEST_CASE("req sketch: estimation mode, exact min and max at ranks 0 and 1, strings", "[req_sketch]") {
+  for (const bool hra: {true, false}) {
+    int num_dropped = 0;
+    for (int t = 0; t < 1000; ++t) {
+      req_sketch<std::string> sketch(4, hra);
+      sketch.update(std::string("a"));
+      sketch.update(std::string("z"));
+      for (int i = 0; i < 1000; ++i) sketch.update("m" + std::to_string(i));
+      bool min_retained = false;
+      bool max_retained = false;
+      for (auto pair: sketch) {
+        if (pair.first == "a") min_retained = true;
+        if (pair.first == "z") max_retained = true;
+      }
+      if (!min_retained || !max_retained) ++num_dropped;
+      REQUIRE(sketch.get_quantile(0) == "a");
+      REQUIRE(sketch.get_quantile(0, false) == "a");
+      REQUIRE(sketch.get_quantile(1) == "z");
+      REQUIRE(sketch.get_quantile(1, false) == "z");
+    }
+    REQUIRE(num_dropped > 0);
+  }
+}
+
+TEST_CASE("req sketch: exact min and max at ranks 0 and 1 after deserialize and merge", "[req_sketch]") {
+  const int n = 1000;
+  for (const bool hra: {true, false}) {
+    int num_dropped = 0;
+    for (int t = 0; t < 1000; ++t) {
+      req_sketch<float> sketch1(4, hra);
+      req_sketch<float> sketch2(4, hra);
+      // sketch1 gets the min first and sketch2 gets the max first, so compaction often drops them
+      sketch1.update(0.0f);
+      for (int i = 1; i < n; ++i) sketch1.update(static_cast<float>(i));
+      sketch2.update(static_cast<float>(2 * n - 1));
+      for (int i = n; i < 2 * n - 1; ++i) sketch2.update(static_cast<float>(i));
+
+      auto bytes = sketch1.serialize();
+      auto sketch = req_sketch<float>::deserialize(bytes.data(), bytes.size());
+      REQUIRE(sketch.get_quantile(0) == 0);
+      REQUIRE(sketch.get_quantile(0, false) == 0);
+      REQUIRE(sketch.get_quantile(1) == n - 1);
+      REQUIRE(sketch.get_quantile(1, false) == n - 1);
+
+      sketch.merge(sketch2);
+      bool min_retained = false;
+      bool max_retained = false;
+      for (auto pair: sketch) {
+        if (pair.first == 0) min_retained = true;
+        if (pair.first == 2 * n - 1) max_retained = true;
+      }
+      if (!min_retained || !max_retained) ++num_dropped;
+      REQUIRE(sketch.get_quantile(0) == 0);
+      REQUIRE(sketch.get_quantile(0, false) == 0);
+      REQUIRE(sketch.get_quantile(1) == 2 * n - 1);
+      REQUIRE(sketch.get_quantile(1, false) == 2 * n - 1);
+    }
+    REQUIRE(num_dropped > 0);
+  }
+}
+
 TEST_CASE("req sketch: stream serialize-deserialize empty", "[req_sketch]") {
   req_sketch<float> sketch(12);
 

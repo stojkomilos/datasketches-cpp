@@ -288,6 +288,9 @@ public:
    * of a hypothetical sorted version of the input stream so far.
    * <p>
    * If the sketch is empty this throws std::runtime_error.
+   * <p>
+   * For non-arithmetic types, the returned reference refers to an item of this sketch, so it
+   * must not be used after this sketch is updated, merged, assigned to, moved or destroyed.
    *
    * @param rank the specified normalized rank in the hypothetical sorted stream.
    * @param inclusive if true the weight of the given item is included into the rank.
@@ -475,7 +478,9 @@ public:
   const_iterator end() const;
 
   /**
-   * Gets the sorted view of this sketch
+   * Gets the sorted view of this sketch.
+   * For non-arithmetic types, the view refers to the items of this sketch, so it must not be used
+   * after this sketch is updated, merged, assigned to, moved or destroyed.
    * @return the sorted view of this sketch
    */
   quantiles_sorted_view<T, Comparator, Allocator> get_sorted_view() const;

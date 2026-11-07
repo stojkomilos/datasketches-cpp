@@ -185,15 +185,6 @@ uint8_t req_compactor<T, C, A>::get_lg_weight() const {
 }
 
 template<typename T, typename C, typename A>
-uint64_t req_compactor<T, C, A>::compute_weight(const T& item, bool inclusive) const {
-  if (!sorted_) const_cast<req_compactor*>(this)->sort(); // allow sorting as a side effect
-  auto it = inclusive ?
-      std::upper_bound(begin(), end(), item, comparator_) :
-      std::lower_bound(begin(), end(), item, comparator_);
-  return std::distance(begin(), it) << lg_weight_;
-}
-
-template<typename T, typename C, typename A>
 template<typename FwdT>
 void req_compactor<T, C, A>::append(FwdT&& item) {
   if (num_items_ == capacity_) grow(capacity_ + get_nom_capacity());
