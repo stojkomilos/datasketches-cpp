@@ -272,19 +272,12 @@ quantiles_sorted_view<T, C, A> req_sketch<T, C, A>::get_sorted_view() const {
     const_cast<Compactor&>(compactors_[0]).sort(); // allow this side effect
   }
   quantiles_sorted_view<T, C, A> view(get_num_retained(), comparator_, allocator_);
-  if (is_empty()) return view;
-  // the compactors are sorted, so the min is retained only as the first item of one
-  bool min_retained = false;
-  for (auto it = compactors_.begin(); it != compactors_.end() && !min_retained; ++it) {
-    min_retained = it->begin() != it->end() && !comparator_(*min_item_, *it->begin());
-  }
-  if (!min_retained) view.add_min(*min_item_);
 
   for (auto& compactor: compactors_) {
     view.add(compactor.begin(), compactor.end(), 1ULL << compactor.get_lg_weight());
   }
 
-  view.convert_to_cummulative(*max_item_);
+  if (!is_empty()) view.convert_to_cummulative(*min_item_, *max_item_);
   return view;
 }
 

@@ -21,7 +21,6 @@
 #define QUANTILES_SORTED_VIEW_IMPL_HPP_
 
 #include <algorithm>
-#include <iterator>
 #include <stdexcept>
 #include <cmath>
 
@@ -31,24 +30,17 @@ template<typename T, typename C, typename A>
 quantiles_sorted_view<T, C, A>::quantiles_sorted_view(uint32_t num, const C& comparator, const A& allocator):
 comparator_(comparator),
 total_weight_(0),
-min_added_(false),
 entries_(allocator)
 {
-  if (num > 0) entries_.reserve(num + 2); // room for the min and max
+  entries_.reserve(num + 2); // room for the min and max
 }
 
 template<typename T, typename C, typename A>
 template<typename Iterator>
 void quantiles_sorted_view<T, C, A>::add(Iterator first, Iterator last, uint64_t weight) {
-  if (first == last) return;
   const size_t size_before = entries_.size();
-  // no merge needed if the new items start at or after the last entry
-  const bool merge = size_before > 0 && comparator_(*first, deref_helper(entries_.back().first));
-  // faster than push_back, which updates the end pointer for every item
-  entries_.resize(size_before + std::distance(first, last));
-  auto out = entries_.begin() + size_before;
-  for (auto it = first; it != last; ++it, ++out) *out = Entry(ref_helper(*it), weight);
-  if (merge) {
+  for (auto it = first; it != last; ++it) entries_.push_back(Entry(ref_helper(*it), weight));
+  if (size_before > 0) {
     Container tmp(entries_.get_allocator());
     tmp.reserve(entries_.capacity());
     std::merge(
@@ -70,21 +62,26 @@ void quantiles_sorted_view<T, C, A>::convert_to_cummulative() {
 
 // Compaction can drop the min and max, but the sketch stores them exactly. Add each back as an entry
 // of weight 1, taken from its neighbor, so ranks 0 and 1 return them (IncludeMinMax in Java).
-// The sketch adds a missing min before the other items, so no entry has to move.
+// The min is added in the cumulative pass, which shifts the entries without a second pass.
 template<typename T, typename C, typename A>
-void quantiles_sorted_view<T, C, A>::add_min(const T& min_item) {
-  entries_.push_back(Entry(ref_helper(min_item), 1));
-  min_added_ = true;
-}
-
-template<typename T, typename C, typename A>
-void quantiles_sorted_view<T, C, A>::convert_to_cummulative(const T& max_item) {
-  if (min_added_) --entries_[1].second;
+void quantiles_sorted_view<T, C, A>::convert_to_cummulative(const T& min_item, const T& max_item) {
   if (comparator_(deref_helper(entries_.back().first), max_item)) {
     --entries_.back().second;
     entries_.push_back(Entry(ref_helper(max_item), 1));
   }
-  convert_to_cummulative();
+  if (!comparator_(min_item, deref_helper(entries_.front().first))) {
+    convert_to_cummulative();
+    return;
+  }
+  --entries_.front().second;
+  entries_.push_back(entries_.back()); // the slot that the last entry shifts into
+  Entry carry(ref_helper(min_item), 1);
+  for (auto& entry: entries_) {
+    const Entry next = entry;
+    total_weight_ += carry.second;
+    entry = Entry(carry.first, total_weight_);
+    carry = next;
+  }
 }
 
 template<typename T, typename C, typename A>

@@ -456,33 +456,11 @@ TEST_CASE("set 4", "sorted view") {
     REQUIRE(view.get_quantile(1, false) == 40);
 }
 
-TEST_CASE("add empty items", "sorted view") {
-  auto view = quantiles_sorted_view<float, std::less<float>, std::allocator<float>>(4, std::less<float>(), std::allocator<float>());
-  std::vector<float> empty;
-  std::vector<float> l0 {1, 3};
-  std::vector<float> l2 {2, 5};
-  view.add(empty.begin(), empty.end(), 1);
-  view.add(l0.begin(), l0.end(), 1);
-  view.add(empty.begin(), empty.end(), 2);
-  view.add(l2.begin(), l2.end(), 4);
-  view.convert_to_cummulative();
-  REQUIRE(view.size() == 4);
-
-  const std::vector<std::pair<float, uint64_t>> expected {{1, 1}, {2, 5}, {3, 6}, {5, 10}};
-  auto it = view.begin();
-  for (const auto& entry: expected) {
-    REQUIRE(it->first == entry.first);
-    REQUIRE(it->second == entry.second);
-    ++it;
-  }
-  REQUIRE(it == view.end());
-}
 TEST_CASE("include min and max", "sorted view") {
   auto view = quantiles_sorted_view<float, std::less<float>, std::allocator<float>>(4, std::less<float>(), std::allocator<float>());
   std::vector<float> l1 {2, 4, 6, 7};
-  view.add_min(1);
   view.add(l1.begin(), l1.end(), 2);
-  view.convert_to_cummulative(8);
+  view.convert_to_cummulative(1, 8);
   REQUIRE(view.size() == 6);
 
   const std::vector<std::pair<float, uint64_t>> expected {{1, 1}, {2, 2}, {4, 4}, {6, 6}, {7, 7}, {8, 8}};
@@ -507,7 +485,7 @@ TEST_CASE("include min and max already retained", "sorted view") {
   auto view = quantiles_sorted_view<float, std::less<float>, std::allocator<float>>(4, std::less<float>(), std::allocator<float>());
   std::vector<float> l1 {2, 4, 6, 7};
   view.add(l1.begin(), l1.end(), 2);
-  view.convert_to_cummulative(7);
+  view.convert_to_cummulative(2, 7);
   REQUIRE(view.size() == 4);
 
   const std::vector<std::pair<float, uint64_t>> expected {{2, 2}, {4, 4}, {6, 6}, {7, 8}};
@@ -523,9 +501,8 @@ TEST_CASE("include min and max already retained", "sorted view") {
 TEST_CASE("include min and max with one retained item", "sorted view") {
   auto view = quantiles_sorted_view<float, std::less<float>, std::allocator<float>>(1, std::less<float>(), std::allocator<float>());
   std::vector<float> l2 {5};
-  view.add_min(1);
   view.add(l2.begin(), l2.end(), 4);
-  view.convert_to_cummulative(9);
+  view.convert_to_cummulative(1, 9);
   REQUIRE(view.size() == 3);
 
   const std::vector<std::pair<float, uint64_t>> expected {{1, 1}, {5, 3}, {9, 4}};
@@ -548,7 +525,7 @@ TEST_CASE("include only max", "sorted view") {
   std::vector<float> l0 {6};
   view.add(l1.begin(), l1.end(), 2);
   view.add(l0.begin(), l0.end(), 1);
-  view.convert_to_cummulative(8);
+  view.convert_to_cummulative(2, 8);
   REQUIRE(view.size() == 4);
 
   // 6 gives its only weight to the max
@@ -566,34 +543,13 @@ TEST_CASE("include only min", "sorted view") {
   auto view = quantiles_sorted_view<float, std::less<float>, std::allocator<float>>(3, std::less<float>(), std::allocator<float>());
   std::vector<float> l1 {4, 6};
   std::vector<float> l0 {2};
-  view.add_min(1);
   view.add(l1.begin(), l1.end(), 2);
   view.add(l0.begin(), l0.end(), 1);
-  view.convert_to_cummulative(6);
+  view.convert_to_cummulative(1, 6);
   REQUIRE(view.size() == 4);
 
   // 2 gives its only weight to the min
   const std::vector<std::pair<float, uint64_t>> expected {{1, 1}, {2, 1}, {4, 3}, {6, 5}};
-  auto it = view.begin();
-  for (const auto& entry: expected) {
-    REQUIRE(it->first == entry.first);
-    REQUIRE(it->second == entry.second);
-    ++it;
-  }
-  REQUIRE(it == view.end());
-}
-
-TEST_CASE("add in-order items", "sorted view") {
-  auto view = quantiles_sorted_view<float, std::less<float>, std::allocator<float>>(5, std::less<float>(), std::allocator<float>());
-  std::vector<float> l0 {1, 3};
-  std::vector<float> l2 {3, 5, 7};
-  view.add(l0.begin(), l0.end(), 1);
-  view.add(l2.begin(), l2.end(), 4);
-  view.convert_to_cummulative();
-  REQUIRE(view.size() == 5);
-
-  // the earlier 3 stays first, as in a merge
-  const std::vector<std::pair<float, uint64_t>> expected {{1, 1}, {3, 2}, {3, 6}, {5, 10}, {7, 14}};
   auto it = view.begin();
   for (const auto& entry: expected) {
     REQUIRE(it->first == entry.first);

@@ -736,13 +736,6 @@ quantiles_sorted_view<T, C, A> quantiles_sketch<T, C, A>::get_sorted_view() cons
     const_cast<quantiles_sketch*>(this)->is_base_buffer_sorted_ = true;
   }
   quantiles_sorted_view<T, C, A> view(get_num_retained(), comparator_, allocator_);
-  if (is_empty()) return view;
-  // the base buffer and the levels are sorted, so the min is retained only as the first item of one
-  bool min_retained = !base_buffer_.empty() && !comparator_(*min_item_, base_buffer_.front());
-  for (auto it = levels_.begin(); it != levels_.end() && !min_retained; ++it) {
-    min_retained = !it->empty() && !comparator_(*min_item_, it->front());
-  }
-  if (!min_retained) view.add_min(*min_item_);
 
   uint64_t weight = 1;
   view.add(base_buffer_.begin(), base_buffer_.end(), weight);
@@ -752,7 +745,7 @@ quantiles_sorted_view<T, C, A> quantiles_sketch<T, C, A>::get_sorted_view() cons
     view.add(level.begin(), level.end(), weight);
   }
 
-  view.convert_to_cummulative(*max_item_);
+  if (!is_empty()) view.convert_to_cummulative(*min_item_, *max_item_);
   return view;
 }
 
