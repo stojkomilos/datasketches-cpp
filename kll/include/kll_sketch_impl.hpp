@@ -769,13 +769,19 @@ template<typename T, typename C, typename A>
 quantiles_sorted_view<T, C, A> kll_sketch<T, C, A>::get_sorted_view() const {
   const_cast<kll_sketch*>(this)->sort_level_zero(); // allow this side effect
   quantiles_sorted_view<T, C, A> view(get_num_retained(), comparator_, allocator_);
+  if (is_empty()) return view;
+  // the levels are sorted, so the min is retained only as the first item of a level
+  bool min_retained = false;
+  for (uint8_t level = 0; level < num_levels_ && !min_retained; ++level) {
+    min_retained = levels_[level] < levels_[level + 1] && !comparator_(*min_item_, items_[levels_[level]]);
+  }
+  if (!min_retained) view.add_min(*min_item_);
   for (uint8_t level = 0; level < num_levels_; ++level) {
     const auto from = items_ + levels_[level];
     const auto to = items_ + levels_[level + 1]; // exclusive
     view.add(from, to, 1ULL << level);
   }
-  view.convert_to_cummulative();
-  if (!is_empty()) view.include_min_max(*min_item_, *max_item_);
+  view.convert_to_cummulative(*max_item_);
   return view;
 }
 
