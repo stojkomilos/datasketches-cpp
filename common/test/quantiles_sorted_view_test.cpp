@@ -456,6 +456,27 @@ TEST_CASE("set 4", "sorted view") {
     REQUIRE(view.get_quantile(1, false) == 40);
 }
 
+TEST_CASE("add empty items", "sorted view") {
+  auto view = quantiles_sorted_view<float, std::less<float>, std::allocator<float>>(4, std::less<float>(), std::allocator<float>());
+  std::vector<float> empty;
+  std::vector<float> l0 {1, 3};
+  std::vector<float> l2 {2, 5};
+  view.add(empty.begin(), empty.end(), 1);
+  view.add(l0.begin(), l0.end(), 1);
+  view.add(empty.begin(), empty.end(), 2);
+  view.add(l2.begin(), l2.end(), 4);
+  view.convert_to_cummulative();
+  REQUIRE(view.size() == 4);
+
+  const std::vector<std::pair<float, uint64_t>> expected {{1, 1}, {2, 5}, {3, 6}, {5, 10}};
+  auto it = view.begin();
+  for (const auto& entry: expected) {
+    REQUIRE(it->first == entry.first);
+    REQUIRE(it->second == entry.second);
+    ++it;
+  }
+  REQUIRE(it == view.end());
+}
 TEST_CASE("include min and max", "sorted view") {
   auto view = quantiles_sorted_view<float, std::less<float>, std::allocator<float>>(4, std::less<float>(), std::allocator<float>());
   std::vector<float> l1 {2, 4, 6, 7};
